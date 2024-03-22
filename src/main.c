@@ -3,8 +3,32 @@
 #include <zephyr/kernel.h>
 #include <zephyr/drivers/display.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/drivers/spi.h>
+#include <lvgl.h>
+#include <zephyr/drivers/gpio.h>
+#include <zephyr/init.h>
 
-#include "logo_image.h"
+#define VEXT_PIN  DT_GPIO_PIN(DT_NODELABEL(vext), gpios)
+#define OLED_RST  DT_GPIO_PIN(DT_NODELABEL(oledrst), gpios)
+
+static int board_heltec_wifi_lora32_v2_init(void)
+{
+	const struct device *gpio;
+
+	gpio = DEVICE_DT_GET(DT_NODELABEL(gpio0));
+	if (!device_is_ready(gpio)) {
+		return -ENODEV;
+	}
+
+	/* turns external VCC on  */
+	gpio_pin_configure(gpio, VEXT_PIN, GPIO_OUTPUT);
+	gpio_pin_set_raw(gpio, VEXT_PIN, 0);
+
+	return 0;
+}
+
+SYS_INIT(board_heltec_wifi_lora32_v2_init, PRE_KERNEL_2, CONFIG_GPIO_INIT_PRIORITY);
+
 
 #define DISPLAY_BUFFER_PITCH 128
 
@@ -12,17 +36,34 @@ LOG_MODULE_REGISTER(display);
 
 static const struct device *display = DEVICE_DT_GET(DT_NODELABEL(ssd1306));
 
-void main(void)
+static uint32_t count;
+
+int main(void)
 {
+  char count_str[11] = {0};
+  lv_obj_t *count_label;
+  
+  LOG_ERR("Hello World!");
+
   if (display == NULL) {
     LOG_ERR("device pointer is NULL");
-    return;
+    return -1;
   }
 
   if (!device_is_ready(display)) {
     LOG_ERR("display device is not ready");
-    return;
+    return -1;
   }
+
+  lv_disp_t * lv_disp = lv_disp_get_default();
+  lv_theme_default_init(lv_disp, lv_color_black(), lv_color_white(), 1, &lv_font_montserrat_14);
+
+  const struct spi_dt_spec sx1278_dev =
+                SPI_DT_SPEC_GET(DT_NODELABEL(sx1276), 0, 0);
+                
+  LOG_INF("sx1278_dev.bus = %p", sx1278_dev.bus);
+  LOG_INF("sx1278_dev.config.cs.gpio.port = %p", sx1278_dev.config.cs.gpio.port);
+  LOG_INF("sx1278_dev.config.cs.gpio.pin = %u", sx1278_dev.config.cs.gpio.pin);
 
   struct display_capabilities capabilities;
   display_get_capabilities(display, &capabilities);
@@ -37,33 +78,21 @@ void main(void)
   LOG_INF("current_pixel_format: %d", capabilities.current_pixel_format);
   LOG_INF("current_orientation: %d", capabilities.current_orientation);
 	 
-  const struct display_buffer_descriptor buf_desc = {
-    .width = x_res,
-    .height = y_res,
-    .buf_size = x_res * y_res,
-    .pitch = DISPLAY_BUFFER_PITCH
-  };
+  count_label = lv_label_create(lv_scr_act());
+	lv_obj_align(count_label, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-  if (display_write(display, 0, 0, &buf_desc, buf) != 0) {
-    LOG_ERR("could not write to display");
-  }
+	lv_task_handler();
+	display_blanking_off(display);
 
-  if (display_set_contrast(display, 0) != 0) {
-    LOG_ERR("could not set display contrast");
-  }
-  size_t ms_sleep = 5;
+	while (1) {
+		if ((count % 100) == 0U) {
+			sprintf(count_str, "%d", count/100U);
+			lv_label_set_text(count_label, count_str);
+		}
+		lv_task_handler();
+		++count;
+		k_sleep(K_MSEC(10));
+	}
 
-  while (true) {
-    // Increase brightness
-    for (size_t i = 0; i < 255; i++) {
-      display_set_contrast(display, i);
-      k_sleep(K_MSEC(ms_sleep));
-    }
-
-    // Decrease brightness
-    for (size_t i = 255; i > 0; i--) {
-      display_set_contrast(display, i);
-      k_sleep(K_MSEC(ms_sleep));
-    }
-  }
+  return 0; 
 }

@@ -1,0 +1,14 @@
+#
+# Copyright (c) 2019 Manivannan Sadhasivam
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+config RADIO_FSK_SX1276
+	bool "Semtech SX1276 driver"
+	default y
+	depends on DT_HAS_SEMTECH_SX1276_FSK_ENABLED
+	select HAS_SEMTECH_SX1276_FSK if DT_HAS_SEMTECH_SX1276_FSK_ENABLED
+	depends on SPI
+	help
+	  Enable LoRa driver for Semtech SX1276.

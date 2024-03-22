@@ -1,0 +1,36 @@
+#
+# Copyright (c) 2019 Manivannan Sadhasivam
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+# Top-level configuration file for LORA drivers.
+
+menuconfig RADIO_FSK
+	bool "FSK drivers [EXPERIMENTAL]"
+	select POLL
+	select EXPERIMENTAL
+	help
+	  Include LoRa drivers in the system configuration.
+
+if RADIO_FSK
+
+module = RADIO_FSK
+module-str = radio_fsk
+source "subsys/logging/Kconfig.template.log_config"
+
+config RADIO_FSK_SHELL
+	bool "Radio FSK Shell"
+	depends on SHELL
+	help
+	  Enable LoRa Shell for testing.
+
+config RADIO_FSK_INIT_PRIORITY
+	int "LoRa initialization priority"
+	default 90
+	help
+	  System initialization priority for LoRa drivers.
+
+rsource "Kconfig.sx127x"
+
+endif # LORA
